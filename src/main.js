@@ -111,8 +111,8 @@ function createProgressTrackerCLI(options = {}) {
         const progressData = core.getProgress();
         currentProgress = progressData.progress;
 
-        // Only update ETA if we have history data
-        if (progressData.hasHistoryData) {
+        // Display ETA if we have any history data OR if a step has been completed
+        if (progressData.hasHistoryData || progressData.etaString) {
             // Only update ETA periodically to prevent flicker
             if (now - lastETAUpdateTime >= etaUpdateInterval && progressData.etaString !== lastETAValue) {
                 lastETAUpdateTime = now;

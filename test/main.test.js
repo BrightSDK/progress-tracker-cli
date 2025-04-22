@@ -1,3 +1,4 @@
+// LICENSE_CODE ZON
 'use strict';
 const { expect } = require('chai');
 const sinon = require('sinon');
@@ -148,6 +149,29 @@ describe('Progress Tracker CLI', function() {
       // Then check if the core's completeStep method was called
       expect(coreStub.completeStep.calledWith(testStep)).to.be.true;
     });
+
+    it('should properly pass step completion to core with run session tracking', function() {
+      // Setup step completion sequence
+      const testStep = 'step1';
+
+      // First update the step
+      progressTracker.updateStep({ name: testStep, endPercentage: 50 });
+      // Then complete it (core will handle the run session tracking)
+      progressTracker.completeStep(testStep);
+
+      // Verify core methods were called with correct parameters
+      expect(coreStub.updateStep.calledWith(sinon.match({ name: testStep }))).to.be.true;
+      expect(coreStub.completeStep.calledWith(testStep)).to.be.true;
+
+      // Complete the same step again - should still call core methods
+      progressTracker.completeStep(testStep);
+      expect(coreStub.completeStep.calledTwice).to.be.true;
+
+      // Both calls should have the same step name
+      const firstCall = coreStub.completeStep.getCall(0).args[0];
+      const secondCall = coreStub.completeStep.getCall(1).args[0];
+      expect(firstCall).to.equal(secondCall);
+    });
   });
 
   describe('Progress Updates', function() {
@@ -172,6 +196,46 @@ describe('Progress Tracker CLI', function() {
 
       // Progress should be updated with intermediate value
       expect(barInstance.update.called).to.be.true;
+    });
+  });
+
+  describe('Progress Updates with History', function() {
+    it('should handle history-based ETA updates', function() {
+      progressTracker.start();
+
+      // Simulate having history data
+      coreStub.getProgress.returns({
+        progress: 25,
+        status: 'In progress',
+        etaString: '01:30',
+        hasHistoryData: true
+      });
+
+      // Trigger an update
+      clock.tick(1100); // More than etaUpdateInterval
+
+      // ETA should be displayed
+      expect(barInstance.update.calledWith(sinon.match.number, sinon.match({
+        etaString: '01:30',
+        etaDisplay: sinon.match(/ETA:/)
+      }))).to.be.true;
+
+      // Now simulate no history
+      coreStub.getProgress.returns({
+        progress: 30,
+        status: 'Still working',
+        etaString: '',
+        hasHistoryData: false
+      });
+
+      // Trigger another update
+      clock.tick(1100);
+
+      // Should update without ETA display
+      const lastCall = barInstance.update.lastCall;
+      if (lastCall.args.length > 1) {
+        expect(lastCall.args[1].etaDisplay).to.equal('');
+      }
     });
   });
 
