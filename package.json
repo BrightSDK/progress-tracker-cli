@@ -4,8 +4,8 @@
   "description": "A CLI utility for tracking progress of multi-step operations with estimated durations",
   "main": "index.js",
   "scripts": {
-    "test": "mocha test/main.test.js",
-    "test:watch": "mocha test/main.test.js --watch",
+    "test": "mocha test/*.test.js",
+    "test:watch": "mocha test/*.test.js --watch",
     "example": "node example/index.js",
     "example:debug": "DEBUG=1 node example/index.js",
     "example:clean": "node example/clean.js"

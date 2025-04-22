@@ -38,10 +38,12 @@ describe('Progress Tracker CLI', function() {
         previousProgress: 0,
         status: 'Test Step'
       }),
-      completeStep: sinon.stub().returns({
-        progress: 50,
-        previousProgress: 10,
-        status: 'Completed'
+      // Replace completeStep with finish
+      finish: sinon.stub().returns({
+        progress: 100,
+        status: 'Completed',
+        etaSeconds: 0,
+        etaString: ''
       }),
       getProgress: sinon.stub().returns({
         progress: 25,
@@ -51,23 +53,25 @@ describe('Progress Tracker CLI', function() {
       }),
       summary: sinon.stub().returns({
         totalTime: 10,
-        steps: [{ from: 'start', to: 'step1', duration: 5 }],
-        adjustmentFactor: 1.2,
-        analysis: [{ name: 'step1', estimatedDuration: 10, actualDuration: 8 }]
-      }),
-      dumpHistory: sinon.stub().returns({
-        steps: [{ name: 'step1', average: 5 }],
-        path: '/tmp/history.json'
+        steps: [{ name: 'step1', startPercentage: 0, endPercentage: 50, actualDuration: 5 }],
+        historyFilePath: '/tmp/history.json'
       }),
       cleanHistory: sinon.stub().returns({
         success: true,
         message: 'History cleaned successfully'
-      })
+      }),
+      getHistoryInfo: sinon.stub().returns({
+        directory: '/tmp',
+        currentAppHistoryPath: '/tmp/history.json',
+        currentAppName: 'test-app'
+      }),
+      resetSession: sinon.stub()
     };
 
     // Mock console methods
     sinon.stub(console, 'log');
     sinon.stub(console, 'error');
+    sinon.stub(console, 'warn');
 
     // Create sinon fake timers to control time
     clock = sinon.useFakeTimers();
@@ -120,57 +124,78 @@ describe('Progress Tracker CLI', function() {
       expect(barInstance.update.callCount).to.be.gt(1);
     });
 
-    it('should complete a step', function() {
-      // Setup the step first, otherwise the completeStep might not have a valid step to complete
-      const testStep = 'step1';
+    it('should handle backward compatibility with "to" property', function() {
+      const step = { name: 'test-step', to: 50 };
+      progressTracker.updateStep(step);
 
-      // First update the step to ensure it exists
-      progressTracker.updateStep({ name: testStep, endPercentage: 50 });
+      // Should convert 'to' to 'endPercentage'
+      expect(coreStub.updateStep.calledWith(sinon.match({
+        name: 'test-step',
+        endPercentage: 50
+      }))).to.be.true;
+    });
+  });
 
-      // Then complete the step
-      progressTracker.completeStep(testStep);
+  describe('Completion', function() {
+    beforeEach(function() {
+      progressTracker.start();
+    });
 
-      // Verify the core completeStep was called
-      expect(coreStub.completeStep.calledWith(testStep)).to.be.true;
+    it('should finish with default message', function() {
+      progressTracker.finish();
 
-      // Complete transition
-      clock.tick(600);
-
-      // Should update the progress bar
+      expect(coreStub.finish.calledOnce).to.be.true;
       expect(barInstance.update.called).to.be.true;
+      expect(barInstance.update.calledWith(100)).to.be.true;
     });
 
-    it('should handle step completion', function() {
-      const testStep = 'step1';
+    it('should finish with custom message', function() {
+      const customMessage = 'Custom complete message';
 
-      // First call the completeStep method
-      progressTracker.completeStep(testStep);
+      // Set up the stub to return customized response
+      coreStub.finish.returns({
+        progress: 100,
+        status: customMessage,
+        etaSeconds: 0,
+        etaString: ''
+      });
 
-      // Then check if the core's completeStep method was called
-      expect(coreStub.completeStep.calledWith(testStep)).to.be.true;
+      progressTracker.finish({ message: customMessage });
+
+      expect(coreStub.finish.calledOnce).to.be.true;
+      expect(coreStub.finish.firstCall.args[0]).to.deep.include({ status: customMessage });
+
+      expect(barInstance.update.calledWith(100, sinon.match({
+        status: customMessage
+      }))).to.be.true;
     });
 
-    it('should properly pass step completion to core with run session tracking', function() {
-      // Setup step completion sequence
-      const testStep = 'step1';
+    it('should automatically show summary when requested', function() {
+      // Spy on summary method
+      const summarySpy = sinon.spy(progressTracker, 'summary');
 
-      // First update the step
-      progressTracker.updateStep({ name: testStep, endPercentage: 50 });
-      // Then complete it (core will handle the run session tracking)
-      progressTracker.completeStep(testStep);
+      progressTracker.finish({ showSummary: true });
 
-      // Verify core methods were called with correct parameters
-      expect(coreStub.updateStep.calledWith(sinon.match({ name: testStep }))).to.be.true;
-      expect(coreStub.completeStep.calledWith(testStep)).to.be.true;
+      // Fast-forward past the setTimeout delay
+      clock.tick(150);
 
-      // Complete the same step again - should still call core methods
-      progressTracker.completeStep(testStep);
-      expect(coreStub.completeStep.calledTwice).to.be.true;
+      expect(summarySpy.calledOnce).to.be.true;
+    });
 
-      // Both calls should have the same step name
-      const firstCall = coreStub.completeStep.getCall(0).args[0];
-      const secondCall = coreStub.completeStep.getCall(1).args[0];
-      expect(firstCall).to.equal(secondCall);
+    it('should clean up interval on finish', function() {
+      // First ensure interval is created
+      clock.tick(100);
+      expect(coreStub.getProgress.called).to.be.true;
+
+      // Reset call count
+      coreStub.getProgress.resetHistory();
+
+      // Finish should clear interval
+      progressTracker.finish();
+
+      // Tick again - shouldn't call getProgress now
+      clock.tick(200);
+      expect(coreStub.getProgress.called).to.be.false;
     });
   });
 
@@ -283,8 +308,8 @@ describe('Progress Tracker CLI', function() {
   describe('History Management', function() {
     it('should expose history functionality', function() {
       // Check if history methods are properly exposed
-      expect(progressTracker.dumpHistory).to.be.a('function');
       expect(progressTracker.cleanHistory).to.be.a('function');
+      expect(progressTracker.getHistoryInfo).to.be.a('function');
     });
 
     it('should clean history when requested', function() {
@@ -309,6 +334,55 @@ describe('Progress Tracker CLI', function() {
 
       expect(result.success).to.be.false;
       expect(result.message).to.include('not available');
+    });
+
+    it('should get history information', function() {
+      const result = progressTracker.getHistoryInfo();
+
+      expect(coreStub.getHistoryInfo.calledOnce).to.be.true;
+      expect(result).to.be.an('object');
+      expect(result.currentAppName).to.equal('test-app');
+    });
+  });
+
+  describe('Stop and Cleanup', function() {
+    beforeEach(function() {
+      progressTracker.start();
+    });
+
+    it('should stop and clean up resources', function() {
+      // First ensure interval is created
+      clock.tick(100);
+      expect(coreStub.getProgress.called).to.be.true;
+
+      // Stop should clean up
+      progressTracker.stop();
+
+      // Verify multibar was stopped
+      expect(cliProgressStub.MultiBar().stop.calledOnce).to.be.true;
+
+      // Reset call history
+      coreStub.getProgress.resetHistory();
+
+      // Tick again - shouldn't call getProgress
+      clock.tick(200);
+      expect(coreStub.getProgress.called).to.be.false;
+    });
+
+    it('should handle stop errors gracefully', function() {
+      // Reset console.error spy before this test
+      console.error.resetHistory();
+
+      // Make multiBar.stop throw an error
+      cliProgressStub.MultiBar().stop.throws(new Error('Test error'));
+
+      // Should not throw when called
+      expect(() => progressTracker.stop()).not.to.throw();
+
+      // Should log error unconditionally (regardless of debug flag)
+      expect(console.error.calledOnce).to.be.true;
+      expect(console.error.firstCall.args[0]).to.equal('Error stopping progress tracker:');
+      expect(console.error.firstCall.args[1]).to.equal('Test error');
     });
   });
 });

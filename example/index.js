@@ -25,31 +25,30 @@ async function runExample() {
 
   // Define our steps with their percentage allocations and proper from/to values
   const steps = [
-    { name: 'initialize', from: 0, to: 10, endPercentage: 10 },
-    { name: 'load-resources', from: 10, to: 30, endPercentage: 30 },
-    { name: 'process-data', from: 30, to: 70, endPercentage: 70 },
-    { name: 'validate', from: 70, to: 80, endPercentage: 80 },
-    { name: 'finalize', from: 80, to: 100, endPercentage: 100 }
+    { name: 'initialize', endPercentage: 10 },
+    { name: 'load-resources', endPercentage: 30 },
+    { name: 'process-data', endPercentage: 70 },
+    { name: 'validate', endPercentage: 80 },
+    { name: 'finalize', endPercentage: 100 }
   ];
 
   try {
     // Execute each step with simulated work
+    let prev;
     for (const step of steps) {
       // Update the tracker to the current step
       tracker.updateStep({
         name: step.name,
-        from: step.from,
-        to: step.to,
         endPercentage: step.endPercentage
       });
 
       // Simulate work for this step - duration varies to match the step complexity
-      const simulatedDuration = getSimulatedDurationForStep(step);
+      const simulatedDuration = getSimulatedDurationForStep(step, prev);
+      prev = step;
       await simulateWork(simulatedDuration);
 
-      // Mark the step as complete
-      tracker.completeStep(step.name);
     }
+    tracker.finish();
 
     // Add a small delay to ensure all transitions are complete
     await new Promise(resolve => setTimeout(resolve, 600));
@@ -66,9 +65,9 @@ async function runExample() {
  * @param {Object} step - Step configuration
  * @returns {number} - Duration in seconds
  */
-function getSimulatedDurationForStep(step) {
+function getSimulatedDurationForStep(step, prev={}) {
   // Calculate percentage range using from/to values
-  const percentRange = step.to - step.from;
+  const percentRange = step.endPercentage - prev.endPercentage || 0;
 
   // Use percentage range to determine duration (roughly 1 second per 10%)
   return Math.max(1, Math.round(percentRange / 10 * 1.5));
