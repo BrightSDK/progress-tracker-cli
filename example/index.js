@@ -15,9 +15,9 @@ async function runExample() {
 
     // Control summary display
     summary: {
-      enabled: true,     // Set to false to disable the summary completely
-      detailed: true,    // Set to true to show detailed stats even without debug mode
-    }
+      enabled: true, // Set to false to disable the summary completely
+      detailed: true, // Set to true to show detailed stats even without debug mode
+    },
   });
 
   // Start the tracker
@@ -29,7 +29,7 @@ async function runExample() {
     { name: 'load-resources', endPercentage: 30 },
     { name: 'process-data', endPercentage: 70 },
     { name: 'validate', endPercentage: 80 },
-    { name: 'finalize', endPercentage: 100 }
+    { name: 'finalize', endPercentage: 100 },
   ];
 
   try {
@@ -39,14 +39,13 @@ async function runExample() {
       // Update the tracker to the current step
       tracker.updateStep({
         name: step.name,
-        endPercentage: step.endPercentage
+        endPercentage: step.endPercentage,
       });
 
       // Simulate work for this step - duration varies to match the step complexity
       const simulatedDuration = getSimulatedDurationForStep(step, prev);
       prev = step;
       await simulateWork(simulatedDuration);
-
     }
     tracker.finish();
 
@@ -65,12 +64,12 @@ async function runExample() {
  * @param {Object} step - Step configuration
  * @returns {number} - Duration in seconds
  */
-function getSimulatedDurationForStep(step, prev={}) {
+function getSimulatedDurationForStep(step, prev = {}) {
   // Calculate percentage range using from/to values
   const percentRange = step.endPercentage - prev.endPercentage || 0;
 
   // Use percentage range to determine duration (roughly 1 second per 10%)
-  return Math.max(1, Math.round(percentRange / 10 * 1.5));
+  return Math.max(1, Math.round((percentRange / 10) * 1.5));
 }
 
 /**

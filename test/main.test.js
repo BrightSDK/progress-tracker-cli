@@ -4,26 +4,30 @@ const { expect } = require('chai');
 const sinon = require('sinon');
 const proxyquire = require('proxyquire');
 
-describe('Progress Tracker CLI', function() {
-  let createProgressTrackerCLI, coreStub, cliProgressStub, progressTracker, barInstance;
+describe('Progress Tracker CLI', function () {
+  let createProgressTrackerCLI,
+    coreStub,
+    cliProgressStub,
+    progressTracker,
+    barInstance;
   let clock;
 
-  beforeEach(function() {
+  beforeEach(function () {
     // Create bar instance stub
     barInstance = {
       update: sinon.stub(),
-      stop: sinon.stub()
+      stop: sinon.stub(),
     };
 
     // Create CLI progress stub
     cliProgressStub = {
       MultiBar: sinon.stub().returns({
         create: sinon.stub().returns(barInstance),
-        stop: sinon.stub()
+        stop: sinon.stub(),
       }),
       Presets: {
-        shades_classic: {}
-      }
+        shades_classic: {},
+      },
     };
 
     // Create core stub with all methods
@@ -31,41 +35,48 @@ describe('Progress Tracker CLI', function() {
       start: sinon.stub().returns({
         progress: 0,
         status: 'Starting...',
-        etaString: ''
+        etaString: '',
       }),
       updateStep: sinon.stub().returns({
         progress: 10,
         previousProgress: 0,
-        status: 'Test Step'
+        status: 'Test Step',
       }),
       // Replace completeStep with finish
       finish: sinon.stub().returns({
         progress: 100,
         status: 'Completed',
         etaSeconds: 0,
-        etaString: ''
+        etaString: '',
       }),
       getProgress: sinon.stub().returns({
         progress: 25,
         status: 'In progress',
         etaString: '01:30',
-        hasHistoryData: true
+        hasHistoryData: true,
       }),
       summary: sinon.stub().returns({
         totalTime: 10,
-        steps: [{ name: 'step1', startPercentage: 0, endPercentage: 50, actualDuration: 5 }],
-        historyFilePath: '/tmp/history.json'
+        steps: [
+          {
+            name: 'step1',
+            startPercentage: 0,
+            endPercentage: 50,
+            actualDuration: 5,
+          },
+        ],
+        historyFilePath: '/tmp/history.json',
       }),
       cleanHistory: sinon.stub().returns({
         success: true,
-        message: 'History cleaned successfully'
+        message: 'History cleaned successfully',
       }),
       getHistoryInfo: sinon.stub().returns({
         directory: '/tmp',
         currentAppHistoryPath: '/tmp/history.json',
-        currentAppName: 'test-app'
+        currentAppName: 'test-app',
       }),
-      resetSession: sinon.stub()
+      resetSession: sinon.stub(),
     };
 
     // Mock console methods
@@ -79,35 +90,35 @@ describe('Progress Tracker CLI', function() {
     // Mock the dependencies
     createProgressTrackerCLI = proxyquire('../src/main', {
       'cli-progress': cliProgressStub,
-      'brd-ono-util-progress-tracker-core': () => coreStub
+      'brd-ono-util-progress-tracker-core': () => coreStub,
     });
 
     // Create a tracker instance for tests
     progressTracker = createProgressTrackerCLI({ name: 'test-app' });
   });
 
-  afterEach(function() {
+  afterEach(function () {
     sinon.restore();
   });
 
-  describe('Initialization', function() {
-    it('should create a CLI progress tracker with default values', function() {
+  describe('Initialization', function () {
+    it('should create a CLI progress tracker with default values', function () {
       expect(progressTracker).to.be.an('object');
     });
 
-    it('should start tracking and create progress bar', function() {
+    it('should start tracking and create progress bar', function () {
       progressTracker.start();
       expect(coreStub.start.calledOnce).to.be.true;
       expect(cliProgressStub.MultiBar.called).to.be.true;
     });
   });
 
-  describe('Step Management', function() {
-    beforeEach(function() {
+  describe('Step Management', function () {
+    beforeEach(function () {
       progressTracker.start();
     });
 
-    it('should update to a new step', function() {
+    it('should update to a new step', function () {
       const step = { name: 'test-step', endPercentage: 50 };
       progressTracker.updateStep(step);
 
@@ -115,7 +126,7 @@ describe('Progress Tracker CLI', function() {
       expect(barInstance.update.called).to.be.true;
     });
 
-    it('should transition between steps smoothly', function() {
+    it('should transition between steps smoothly', function () {
       progressTracker.updateStep({ name: 'step1', endPercentage: 50 });
 
       // Fast-forward through animation duration
@@ -124,24 +135,28 @@ describe('Progress Tracker CLI', function() {
       expect(barInstance.update.callCount).to.be.gt(1);
     });
 
-    it('should handle backward compatibility with "to" property', function() {
+    it('should handle backward compatibility with "to" property', function () {
       const step = { name: 'test-step', to: 50 };
       progressTracker.updateStep(step);
 
       // Should convert 'to' to 'endPercentage'
-      expect(coreStub.updateStep.calledWith(sinon.match({
-        name: 'test-step',
-        endPercentage: 50
-      }))).to.be.true;
+      expect(
+        coreStub.updateStep.calledWith(
+          sinon.match({
+            name: 'test-step',
+            endPercentage: 50,
+          }),
+        ),
+      ).to.be.true;
     });
   });
 
-  describe('Completion', function() {
-    beforeEach(function() {
+  describe('Completion', function () {
+    beforeEach(function () {
       progressTracker.start();
     });
 
-    it('should finish with default message', function() {
+    it('should finish with default message', function () {
       progressTracker.finish();
 
       expect(coreStub.finish.calledOnce).to.be.true;
@@ -149,7 +164,7 @@ describe('Progress Tracker CLI', function() {
       expect(barInstance.update.calledWith(100)).to.be.true;
     });
 
-    it('should finish with custom message', function() {
+    it('should finish with custom message', function () {
       const customMessage = 'Custom complete message';
 
       // Set up the stub to return customized response
@@ -157,20 +172,27 @@ describe('Progress Tracker CLI', function() {
         progress: 100,
         status: customMessage,
         etaSeconds: 0,
-        etaString: ''
+        etaString: '',
       });
 
       progressTracker.finish({ message: customMessage });
 
       expect(coreStub.finish.calledOnce).to.be.true;
-      expect(coreStub.finish.firstCall.args[0]).to.deep.include({ status: customMessage });
+      expect(coreStub.finish.firstCall.args[0]).to.deep.include({
+        status: customMessage,
+      });
 
-      expect(barInstance.update.calledWith(100, sinon.match({
-        status: customMessage
-      }))).to.be.true;
+      expect(
+        barInstance.update.calledWith(
+          100,
+          sinon.match({
+            status: customMessage,
+          }),
+        ),
+      ).to.be.true;
     });
 
-    it('should automatically show summary when requested', function() {
+    it('should automatically show summary when requested', function () {
       // Spy on summary method
       const summarySpy = sinon.spy(progressTracker, 'summary');
 
@@ -182,7 +204,7 @@ describe('Progress Tracker CLI', function() {
       expect(summarySpy.calledOnce).to.be.true;
     });
 
-    it('should clean up interval on finish', function() {
+    it('should clean up interval on finish', function () {
       // First ensure interval is created
       clock.tick(100);
       expect(coreStub.getProgress.called).to.be.true;
@@ -199,12 +221,12 @@ describe('Progress Tracker CLI', function() {
     });
   });
 
-  describe('Progress Updates', function() {
-    beforeEach(function() {
+  describe('Progress Updates', function () {
+    beforeEach(function () {
       progressTracker.start();
     });
 
-    it('should update progress periodically', function() {
+    it('should update progress periodically', function () {
       // Trigger interval update
       clock.tick(100);
 
@@ -212,7 +234,7 @@ describe('Progress Tracker CLI', function() {
       expect(barInstance.update.called).to.be.true;
     });
 
-    it('should handle smooth transitions', function() {
+    it('should handle smooth transitions', function () {
       // Set up transition state
       progressTracker.updateStep({ name: 'step1', endPercentage: 50 });
 
@@ -224,8 +246,8 @@ describe('Progress Tracker CLI', function() {
     });
   });
 
-  describe('Progress Updates with History', function() {
-    it('should handle history-based ETA updates', function() {
+  describe('Progress Updates with History', function () {
+    it('should handle history-based ETA updates', function () {
       progressTracker.start();
 
       // Simulate having history data
@@ -233,24 +255,29 @@ describe('Progress Tracker CLI', function() {
         progress: 25,
         status: 'In progress',
         etaString: '01:30',
-        hasHistoryData: true
+        hasHistoryData: true,
       });
 
       // Trigger an update
       clock.tick(1100); // More than etaUpdateInterval
 
       // ETA should be displayed
-      expect(barInstance.update.calledWith(sinon.match.number, sinon.match({
-        etaString: '01:30',
-        etaDisplay: sinon.match(/ETA:/)
-      }))).to.be.true;
+      expect(
+        barInstance.update.calledWith(
+          sinon.match.number,
+          sinon.match({
+            etaString: '01:30',
+            etaDisplay: sinon.match(/ETA:/),
+          }),
+        ),
+      ).to.be.true;
 
       // Now simulate no history
       coreStub.getProgress.returns({
         progress: 30,
         status: 'Still working',
         etaString: '',
-        hasHistoryData: false
+        hasHistoryData: false,
       });
 
       // Trigger another update
@@ -264,12 +291,12 @@ describe('Progress Tracker CLI', function() {
     });
   });
 
-  describe('Summary Generation', function() {
-    beforeEach(function() {
+  describe('Summary Generation', function () {
+    beforeEach(function () {
       progressTracker.start();
     });
 
-    it('should display summary', function() {
+    it('should display summary', function () {
       progressTracker.summary();
 
       expect(coreStub.summary.calledOnce).to.be.true;
@@ -277,10 +304,10 @@ describe('Progress Tracker CLI', function() {
       expect(cliProgressStub.MultiBar().stop.calledOnce).to.be.true;
     });
 
-    it('should skip summary when disabled', function() {
+    it('should skip summary when disabled', function () {
       progressTracker = createProgressTrackerCLI({
         name: 'test-app',
-        summary: false
+        summary: false,
       });
 
       progressTracker.start();
@@ -290,11 +317,11 @@ describe('Progress Tracker CLI', function() {
       expect(console.log.called).to.be.false;
     });
 
-    it('should show detailed summary when enabled', function() {
+    it('should show detailed summary when enabled', function () {
       progressTracker = createProgressTrackerCLI({
         name: 'test-app',
         debug: true,
-        summary: { detailed: true }
+        summary: { detailed: true },
       });
 
       progressTracker.start();
@@ -305,28 +332,28 @@ describe('Progress Tracker CLI', function() {
     });
   });
 
-  describe('History Management', function() {
-    it('should expose history functionality', function() {
+  describe('History Management', function () {
+    it('should expose history functionality', function () {
       // Check if history methods are properly exposed
       expect(progressTracker.cleanHistory).to.be.a('function');
       expect(progressTracker.getHistoryInfo).to.be.a('function');
     });
 
-    it('should clean history when requested', function() {
+    it('should clean history when requested', function () {
       const result = progressTracker.cleanHistory('test-app');
 
       expect(coreStub.cleanHistory.calledWith('test-app')).to.be.true;
       expect(result.success).to.be.true;
     });
 
-    it('should handle missing cleanHistory method in core', function() {
+    it('should handle missing cleanHistory method in core', function () {
       // Create version without cleanHistory
       const oldCoreStub = { ...coreStub };
       delete oldCoreStub.cleanHistory;
 
       createProgressTrackerCLI = proxyquire('../src/main', {
         'cli-progress': cliProgressStub,
-        'brd-ono-util-progress-tracker-core': () => oldCoreStub
+        'brd-ono-util-progress-tracker-core': () => oldCoreStub,
       });
 
       const oldTracker = createProgressTrackerCLI({ name: 'test-app' });
@@ -336,7 +363,7 @@ describe('Progress Tracker CLI', function() {
       expect(result.message).to.include('not available');
     });
 
-    it('should get history information', function() {
+    it('should get history information', function () {
       const result = progressTracker.getHistoryInfo();
 
       expect(coreStub.getHistoryInfo.calledOnce).to.be.true;
@@ -345,12 +372,12 @@ describe('Progress Tracker CLI', function() {
     });
   });
 
-  describe('Stop and Cleanup', function() {
-    beforeEach(function() {
+  describe('Stop and Cleanup', function () {
+    beforeEach(function () {
       progressTracker.start();
     });
 
-    it('should stop and clean up resources', function() {
+    it('should stop and clean up resources', function () {
       // First ensure interval is created
       clock.tick(100);
       expect(coreStub.getProgress.called).to.be.true;
@@ -369,7 +396,7 @@ describe('Progress Tracker CLI', function() {
       expect(coreStub.getProgress.called).to.be.false;
     });
 
-    it('should handle stop errors gracefully', function() {
+    it('should handle stop errors gracefully', function () {
       // Reset console.error spy before this test
       console.error.resetHistory();
 
@@ -381,7 +408,9 @@ describe('Progress Tracker CLI', function() {
 
       // Should log error unconditionally (regardless of debug flag)
       expect(console.error.calledOnce).to.be.true;
-      expect(console.error.firstCall.args[0]).to.equal('Error stopping progress tracker:');
+      expect(console.error.firstCall.args[0]).to.equal(
+        'Error stopping progress tracker:',
+      );
       expect(console.error.firstCall.args[1]).to.equal('Test error');
     });
   });

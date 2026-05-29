@@ -14,7 +14,9 @@ const appName = process.argv[2] || 'example-app';
 
 // Check if cleanHistory is available
 if (typeof tracker.cleanHistory !== 'function') {
-  console.error('Error: cleanHistory method is not available in this version of the tracker');
+  console.error(
+    'Error: cleanHistory method is not available in this version of the tracker',
+  );
   process.exit(1);
 }
 
